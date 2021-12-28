@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+  PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+  "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="kr.bettercode.msabatchforjava.repository.ExampleSummaryRepository">
+  <insert id="save" parameterType="kr.bettercode.msabatchforjava.model.examplesummary.ExampleSummary">
+    INSERT INTO example_summary (`datetime`, `summary`)
+    VALUES (#{datetime,jdbcType=TIMESTAMP}, #{summary,jdbcType=VARCHAR})
+  </insert>
+</mapper>
