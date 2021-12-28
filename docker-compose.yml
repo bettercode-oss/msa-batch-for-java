@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+  db1:
+    image: mysql:5.7.36
+    container_name: mysql-batch
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=@!1228tue
+      - MYSQL_USER=scott
+      - MYSQL_PASSWORD=tiger
+      - MYSQL_DATABASE=ocpp_sample
+    volumes:
+      - db1:/var/lib/mysql-batch1
+    command: [ 'mysqld', '--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci', '--default-authentication-plugin=mysql_native_password' ]
+volumes:
+  db1:
