@@ -15,5 +15,12 @@ services:
     volumes:
       - db1:/var/lib/mysql-batch1
     command: [ 'mysqld', '--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci', '--default-authentication-plugin=mysql_native_password' ]
+  backend:
+    image: docker.io/library/msa-batch-for-java:0.0.1-SNAPSHOT
+    ports:
+      - "8080:8080"
+    environment:
+      spring.datasource.url: "jdbc:mysql://db1:3306/ocpp_sample?autoReconnect=true&useUnicode=true&characterEncoding=utf8&useSSL=false"
+      spring.datasource.hikari.jdbc-url: "jdbc:mysql://db1:3306/ocpp_sample?autoReconnect=true&useUnicode=true&characterEncoding=utf8&useSSL=false"
 volumes:
   db1:
