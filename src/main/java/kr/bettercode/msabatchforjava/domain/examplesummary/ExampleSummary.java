@@ -7,4 +7,9 @@ public class ExampleSummary {
   private Long id;
   private LocalDateTime datetime;
   private String summary;
+
+  public ExampleSummary(LocalDateTime datetime, String summary) {
+    this.datetime = datetime;
+    this.summary = summary;
+  }
 }
