@@ -10,7 +10,8 @@ public class ExampleItemProcessor implements ItemProcessor<Example, ExampleSumma
   @Override
   public ExampleSummary process(final Example example) throws Exception {
     final LocalDateTime datetime = example.getDate().atTime(example.getTime());
-    final String summary = example.getTitle() + "\n" + example.getContent().substring(0, 500);
+    final String content = example.getContent();
+    final String summary = example.getTitle() + "\n" + content.substring(0, Math.min(content.length(), 500));
 
     return new ExampleSummary(datetime, summary);
   }
