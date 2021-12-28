@@ -1,8 +1,8 @@
 package kr.bettercode.msabatchforjava.batch;
 
 import java.time.LocalDateTime;
-import kr.bettercode.msabatchforjava.domain.example.Example;
-import kr.bettercode.msabatchforjava.domain.examplesummary.ExampleSummary;
+import kr.bettercode.msabatchforjava.model.example.Example;
+import kr.bettercode.msabatchforjava.model.examplesummary.ExampleSummary;
 import org.springframework.batch.item.ItemProcessor;
 
 public class ExampleItemProcessor implements ItemProcessor<Example, ExampleSummary> {
