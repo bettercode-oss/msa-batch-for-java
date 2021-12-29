@@ -19,6 +19,7 @@ import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.launch.JobLauncher;
 import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
 import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
@@ -34,6 +35,8 @@ import org.springframework.scheduling.annotation.Scheduled;
 @EnableScheduling
 @EnableBatchProcessing
 public class BatchConfiguration {
+
+  private static final String SUMMARY_JOB = "summary";
 
   private final JobBuilderFactory jobBuilderFactory;
   private final StepBuilderFactory stepBuilderFactory;
@@ -53,7 +56,8 @@ public class BatchConfiguration {
   /**
    * Item을 읽어오는 Reader를 정의합니다.
    */
-  @Bean
+  @Bean(name = SUMMARY_JOB + "_reader")
+  @StepScope
   public MyBatisCursorItemReader<Example> reader() {
     return new MyBatisCursorItemReaderBuilder<Example>()
         .sqlSessionFactory(sqlSessionFactory)
@@ -69,7 +73,8 @@ public class BatchConfiguration {
    * 필수적이지 않으나, 이를 사용하는 이유는 비즈니스 로직을 분리하기 위함입니다.
    * </p>
    */
-  @Bean
+  @Bean(name = SUMMARY_JOB + "_processsor")
+  @StepScope
   public ExampleItemProcessor processor() {
     return new ExampleItemProcessor();
   }
@@ -77,7 +82,8 @@ public class BatchConfiguration {
   /**
    * 프로세스가 완료된 데이터를 기록하는 Writer를 정의합니다.
    */
-  @Bean
+  @Bean(name = SUMMARY_JOB + "_writer")
+  @StepScope
   public MyBatisBatchItemWriter<ExampleSummary> writer() {
     return new MyBatisBatchItemWriterBuilder<ExampleSummary>()
         .sqlSessionFactory(sqlSessionFactory)
@@ -85,7 +91,7 @@ public class BatchConfiguration {
         .build();
   }
 
-  @Bean
+  @Bean(name = SUMMARY_JOB)
   public Job exampleBatchJob() {
     return jobBuilderFactory.get("exampleBatchJob") // Job의 이름
 //        .incrementer(new RunIdIncrementer()) // 동일 Job Parameter로 Job을 다시 실행할 수 있게 해줍니다.
@@ -95,7 +101,7 @@ public class BatchConfiguration {
         .build();
   }
 
-  @Bean
+  @Bean(name = SUMMARY_JOB + "_step1")
   public Step step1() {
     return stepBuilderFactory.get("step1") // Step의 이름
         .<Example, ExampleSummary>chunk(10) // 한 번에 실행할 작업의 개수(한 트랜잭션으로 묶임)
@@ -115,7 +121,9 @@ public class BatchConfiguration {
     try {
       final JobExecution execution = jobLauncher.run(exampleBatchJob(), jobParameters);
       log.info("Job이 {} 상태로 종료되었습니다.", execution.getStatus());
-    } catch (JobExecutionAlreadyRunningException | JobRestartException | JobInstanceAlreadyCompleteException | JobParametersInvalidException e) {
+    } catch (JobInstanceAlreadyCompleteException e) {
+      log.info("이미 완료된 Job 입니다. 호출한 파라미터: {}", jobParameters);
+    } catch (JobExecutionAlreadyRunningException | JobRestartException | JobParametersInvalidException e) {
       log.error("Job 실행 중 오류가 발생했습니다.", e);
     }
   }
