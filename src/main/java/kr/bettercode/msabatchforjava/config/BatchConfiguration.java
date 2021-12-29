@@ -4,34 +4,50 @@ import kr.bettercode.msabatchforjava.batch.ExampleItemProcessor;
 import kr.bettercode.msabatchforjava.listener.JobCompletionNotificationListener;
 import kr.bettercode.msabatchforjava.model.example.Example;
 import kr.bettercode.msabatchforjava.model.examplesummary.ExampleSummary;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.mybatis.spring.batch.MyBatisBatchItemWriter;
 import org.mybatis.spring.batch.MyBatisCursorItemReader;
 import org.mybatis.spring.batch.builder.MyBatisBatchItemWriterBuilder;
 import org.mybatis.spring.batch.builder.MyBatisCursorItemReaderBuilder;
 import org.springframework.batch.core.Job;
+import org.springframework.batch.core.JobExecution;
+import org.springframework.batch.core.JobParameters;
+import org.springframework.batch.core.JobParametersBuilder;
+import org.springframework.batch.core.JobParametersInvalidException;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
-import org.springframework.batch.core.launch.support.RunIdIncrementer;
+import org.springframework.batch.core.launch.JobLauncher;
+import org.springframework.batch.core.repository.JobExecutionAlreadyRunningException;
+import org.springframework.batch.core.repository.JobInstanceAlreadyCompleteException;
+import org.springframework.batch.core.repository.JobRestartException;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.dao.DataAccessException;
+import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.scheduling.annotation.Scheduled;
 
+@Slf4j
 @Configuration
+@EnableScheduling
 @EnableBatchProcessing
 public class BatchConfiguration {
 
   private final JobBuilderFactory jobBuilderFactory;
   private final StepBuilderFactory stepBuilderFactory;
   private final SqlSessionFactory sqlSessionFactory;
+  private final JobCompletionNotificationListener listener;
+  private final JobLauncher jobLauncher;
 
   public BatchConfiguration(JobBuilderFactory jobBuilderFactory, StepBuilderFactory stepBuilderFactory,
-      SqlSessionFactory sqlSessionFactory) {
+      SqlSessionFactory sqlSessionFactory, JobCompletionNotificationListener listener, JobLauncher jobLauncher) {
     this.jobBuilderFactory = jobBuilderFactory;
     this.stepBuilderFactory = stepBuilderFactory;
     this.sqlSessionFactory = sqlSessionFactory;
+    this.listener = listener;
+    this.jobLauncher = jobLauncher;
   }
 
   /**
@@ -46,7 +62,12 @@ public class BatchConfiguration {
   }
 
   /**
-   * 데이터를 가공하는 역할을 합니다. </br> 필수적이지 않으나, 이를 사용하는 이유는 비즈니스 로직을 분리하기 위함입니다.
+   * <p>
+   * 데이터를 가공하는 역할을 합니다.
+   * </p>
+   * <p>
+   * 필수적이지 않으나, 이를 사용하는 이유는 비즈니스 로직을 분리하기 위함입니다.
+   * </p>
    */
   @Bean
   public ExampleItemProcessor processor() {
@@ -65,23 +86,37 @@ public class BatchConfiguration {
   }
 
   @Bean
-  public Job exampleBatchJob(JobCompletionNotificationListener listener, Step step1) {
+  public Job exampleBatchJob() {
     return jobBuilderFactory.get("exampleBatchJob") // Job의 이름
-        .incrementer(new RunIdIncrementer()) // 동일 Job Parameter로 Job을 다시 실행할 수 있게 해줍니다.
+//        .incrementer(new RunIdIncrementer()) // 동일 Job Parameter로 Job을 다시 실행할 수 있게 해줍니다.
         .listener(listener) // 전후처리 담당(job, step ...)
-        .flow(step1) // step의 흐름을 제어합니다. 간단하게 step만 실행하는 flow입니다.
+        .flow(step1()) // step의 흐름을 제어합니다. 간단하게 step만 실행하는 flow입니다.
         .end()
         .build();
   }
 
   @Bean
-  public Step step1(MyBatisBatchItemWriter<ExampleSummary> writer) {
+  public Step step1() {
     return stepBuilderFactory.get("step1") // Step의 이름
         .<Example, ExampleSummary>chunk(10) // 한 번에 실행할 작업의 개수(한 트랜잭션으로 묶임)
         .faultTolerant().retryLimit(3).retry(DataAccessException.class) // 재시도 설정
         .reader(reader())
         .processor(processor())
-        .writer(writer)
+        .writer(writer())
         .build();
+  }
+
+  @Scheduled(cron = "0 * * * * *") // https://spring.io/blog/2020/11/10/new-in-spring-5-3-improved-cron-expressions
+  public void runJob() {
+    JobParameters jobParameters = new JobParametersBuilder()
+        .addLong("time", System.currentTimeMillis())
+        .toJobParameters();
+
+    try {
+      final JobExecution execution = jobLauncher.run(exampleBatchJob(), jobParameters);
+      log.info("Job이 {} 상태로 종료되었습니다.", execution.getStatus());
+    } catch (JobExecutionAlreadyRunningException | JobRestartException | JobInstanceAlreadyCompleteException | JobParametersInvalidException e) {
+      log.error("Job 실행 중 오류가 발생했습니다.", e);
+    }
   }
 }
