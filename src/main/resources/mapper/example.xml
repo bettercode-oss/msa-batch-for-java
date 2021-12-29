@@ -17,4 +17,14 @@
     FROM example
     ORDER BY id
   </select>
+
+  <update id="update" parameterType="kr.bettercode.msabatchforjava.model.example.Example">
+    UPDATE example
+    <set>
+      <if test="content != null">
+        `content` = #{content,jdbcType=VARCHAR},
+      </if>
+    </set>
+    WHERE id = #{id,jdbcType=BIGINT}
+  </update>
 </mapper>

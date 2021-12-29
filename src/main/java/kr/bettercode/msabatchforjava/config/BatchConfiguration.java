@@ -1,6 +1,7 @@
 package kr.bettercode.msabatchforjava.config;
 
 import kr.bettercode.msabatchforjava.batch.ExampleItemProcessor;
+import kr.bettercode.msabatchforjava.batch.ExampleItemTrimProcessor;
 import kr.bettercode.msabatchforjava.listener.JobCompletionNotificationListener;
 import kr.bettercode.msabatchforjava.model.example.Example;
 import kr.bettercode.msabatchforjava.model.examplesummary.ExampleSummary;
@@ -73,10 +74,36 @@ public class BatchConfiguration {
    * 필수적이지 않으나, 이를 사용하는 이유는 비즈니스 로직을 분리하기 위함입니다.
    * </p>
    */
+  @Bean(name = SUMMARY_JOB + "_trim_processsor")
+  @StepScope
+  public ExampleItemTrimProcessor trimProcessor() {
+    return new ExampleItemTrimProcessor();
+  }
+
+  /**
+   * <p>
+   * 데이터를 가공하는 역할을 합니다.
+   * </p>
+   * <p>
+   * 필수적이지 않으나, 이를 사용하는 이유는 비즈니스 로직을 분리하기 위함입니다.
+   * </p>
+   */
   @Bean(name = SUMMARY_JOB + "_processsor")
   @StepScope
   public ExampleItemProcessor processor() {
     return new ExampleItemProcessor();
+  }
+
+  /**
+   * 프로세스가 완료된 데이터를 기록하는 Writer를 정의합니다.
+   */
+  @Bean(name = SUMMARY_JOB + "_trim_writer")
+  @StepScope
+  public MyBatisBatchItemWriter<Example> trimWriter() {
+    return new MyBatisBatchItemWriterBuilder<Example>()
+        .sqlSessionFactory(sqlSessionFactory)
+        .statementId("kr.bettercode.msabatchforjava.repository.ExampleRepository.update")
+        .build();
   }
 
   /**
@@ -97,13 +124,31 @@ public class BatchConfiguration {
 //        .incrementer(new RunIdIncrementer()) // 동일 Job Parameter로 Job을 다시 실행할 수 있게 해줍니다.
         .listener(listener) // 전후처리 담당(job, step ...)
         .flow(step1()) // step의 흐름을 제어합니다. 간단하게 step만 실행하는 flow입니다.
+        .next(step2()) // 다음 flow를 정의합니다.
         .end()
         .build();
   }
 
+  /**
+   * content의 trim을 수행합니다.
+   */
   @Bean(name = SUMMARY_JOB + "_step1")
   public Step step1() {
     return stepBuilderFactory.get("step1") // Step의 이름
+        .<Example, Example>chunk(10) // 한 번에 실행할 작업의 개수(한 트랜잭션으로 묶임)
+        .faultTolerant().retryLimit(3).retry(DataAccessException.class) // 재시도 설정
+        .reader(reader())
+        .processor(trimProcessor())
+        .writer(trimWriter())
+        .build();
+  }
+
+  /**
+   * 요약정보를 만들고 이를 요약 테이블에 저장합니다.
+   */
+  @Bean(name = SUMMARY_JOB + "_step2")
+  public Step step2() {
+    return stepBuilderFactory.get("step2") // Step의 이름
         .<Example, ExampleSummary>chunk(10) // 한 번에 실행할 작업의 개수(한 트랜잭션으로 묶임)
         .faultTolerant().retryLimit(3).retry(DataAccessException.class) // 재시도 설정
         .reader(reader())

@@ -7,4 +7,6 @@ import org.apache.ibatis.annotations.Mapper;
 public interface ExampleRepository {
 
   Example getExample();
+
+  void update(Example example);
 }
